@@ -5,7 +5,7 @@
 
 export { SanctionsProvider } from './SanctionsProvider';
 export { MockSanctionsProvider, MOCK_FLAGGED_ADDRESSES } from './mockProvider';
-export { CsvSanctionsProvider, parseCsv } from './csvProvider';
+export { CsvSanctionsProvider } from './csvProvider';
 export {
   syncSanctionsToDenylist,
   createRpcDenylistWriter,

@@ -37,6 +37,7 @@ interface CacheEntry {
 export class ProviderResultCache {
   private cache: Map<string, CacheEntry> = new Map();
   private readonly ttlMs: number;
+  private readonly maxEntries: number | undefined;
   private readonly inFlight = new Map<string, Promise<{ flagged: boolean; source: string }>>();
 
   /**
@@ -370,6 +371,35 @@ export async function syncSanctionsToDenylist(options: SyncOptions): Promise<Syn
   const failedWithReasons: FailedAddress[] = [];
   let checked = 0;
 
+  // Partition: separate structurally invalid StrKeys from valid ones.
+  const invalid: string[] = [];
+  const validAddresses: string[] = [];
+  for (const addr of uniqueAddresses) {
+    if (StrKey.isValidEd25519PublicKey(addr)) {
+      validAddresses.push(addr);
+    } else {
+      invalid.push(addr);
+    }
+  }
+
+  // Partition valid addresses into skipped (already complete per checkpoint) and
+  // pendingAddresses (still need to be checked against the provider).
+  const skipped: string[] = [];
+  let pendingAddresses: string[];
+  if (resume && checkpoint) {
+    const pendingList: string[] = [];
+    for (const addr of validAddresses) {
+      if (await checkpoint.isComplete(addr)) {
+        skipped.push(addr);
+      } else {
+        pendingList.push(addr);
+      }
+    }
+    pendingAddresses = pendingList;
+  } else {
+    pendingAddresses = validAddresses;
+  }
+
   const getAddressResult = async (address: string): Promise<{ flagged: boolean; source: string }> => {
     if (cache) {
       return cache.getOrLoad(address, () => withRetry(() => provider.checkAddress(address), retry));
@@ -449,7 +479,7 @@ export async function syncSanctionsToDenylist(options: SyncOptions): Promise<Syn
   );
 
 safeLogger.info('sanctions-oracle: screening complete', {
-    checked: addresses.length,
+    checked: pendingAddresses.length,
     flagged: flagged.length,
   });
 
@@ -490,6 +520,7 @@ safeLogger.info('sanctions-oracle: screening complete', {
         span.setAttribute('denylist_write.tx_hash', result.hash);
         span.end('ok');
         written.push(address);
+        await checkpoint?.markComplete(address);
         safeLogger.info('sanctions-oracle: address written to denylist', {
           address,
           hash: result.hash,
@@ -518,7 +549,7 @@ safeLogger.info('sanctions-oracle: screening complete', {
   };
 }
 
-interface RpcDenylistWriterOptions {
+export interface RpcDenylistWriterOptions {
   rpcUrl: string;
   networkPassphrase: string;
   contractId: string;
@@ -541,7 +572,7 @@ interface RpcDenylistWriterOptions {
    * Optional logger used to record an audit-logging failure without failing
    * the write it accompanies. Defaults to a no-op logger.
    */
-  logger?: StructuredLogger;
+  logger?: Logger;
 }
 
 // Kept behind the DenylistWriter interface (rather than called directly
