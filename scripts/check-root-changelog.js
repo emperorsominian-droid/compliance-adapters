@@ -21,7 +21,7 @@ if (!releaseHeading.test(changelog)) {
   process.exit(1);
 }
 
-const unreleasedSection = changelog.match(/^## \[Unreleased\]([\\s\\S]*?)(?=^## \[)/m)?.[1] ?? '';
+const unreleasedSection = changelog.match(/^## \[Unreleased\]([\s\S]*?)(?=^## \[)/m)?.[1] ?? '';
 if (unreleasedSection.trim()) {
   console.error(
     'CHANGELOG.md [Unreleased] must be empty when preparing a release; move its notes into the dated release entry.',

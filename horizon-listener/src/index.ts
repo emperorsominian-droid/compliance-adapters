@@ -10,6 +10,12 @@ export {
   type RawContractEvent,
   type RpcEventSourceOptions,
 } from './eventSource';
+export {
+  InMemoryDeadLetterQueue,
+  FileDeadLetterQueue,
+  type DeadLetterEvent,
+  type DeadLetterQueue,
+} from './deadLetterQueue';
 export { computeBackoffDelayMs, type BackoffOptions } from '@compliance-adapters/backoff';
 export { HttpWebhookSender, type WebhookSender, type HttpWebhookSenderOptions } from './webhook';
 export { createWebhookForwarder, type WebhookForwarderOptions } from './factory';

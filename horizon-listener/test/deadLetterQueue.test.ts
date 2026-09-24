@@ -264,7 +264,7 @@ describe('FileDeadLetterQueue', () => {
 
     const stored = dlq.getAll();
     expect(stored).toHaveLength(10);
-    expect(new Set(stored.map((e) => e.event.id))).toHaveSize(10);
+    expect(new Set(stored.map((e) => e.event.id)).size).toBe(10);
   });
 
   it('provides file path for external replay/inspection', async () => {

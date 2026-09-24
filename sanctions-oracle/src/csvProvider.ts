@@ -28,6 +28,54 @@ export interface CsvSanctionsProviderOptions {
   logger?: Logger;
 }
 
+/**
+ * Minimal RFC 4180 CSV parser: handles quoted fields (with embedded commas,
+ * newlines and doubled-quote escapes), CRLF/LF line endings and a leading
+ * UTF-8 BOM. Returns one string[] per record; blank lines yield `['']` so
+ * record indexes stay aligned with line numbers.
+ */
+export function parseCsv(content: string): string[][] {
+  const text = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += ch;
+    }
+  }
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
 export class CsvSanctionsProvider implements SanctionsProvider {
   private flaggedAddresses: Map<string, string[]> = new Map();
   private readonly logger: Logger;
@@ -49,27 +97,34 @@ export class CsvSanctionsProvider implements SanctionsProvider {
         return;
       }
 
-      const content = fs.readFileSync(this.csvPath, 'utf-8');
-      const lines = content.trim().split('\n');
+      const rows = parseCsv(fs.readFileSync(this.csvPath, 'utf-8'));
 
       // Skip header row
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const fields = rows[i];
+        if (fields.length === 1 && fields[0].trim() === '') continue;
 
-        const parts = line.split(',');
-        if (parts.length >= 1) {
-          const address = parts[0].trim();
-          if (!StrKey.isValidEd25519PublicKey(address)) {
-            this.logger.warn(
-              `sanctions-oracle: skipping invalid address at line ${i + 1} of ${this.csvPath}: "${address}" is not a valid Stellar G... address`,
-            );
-            continue;
-          }
-          const source = parts.length >= 2 ? parts[1].trim() : CSV_SOURCE;
-          const sources = this.flaggedAddresses.get(address) ?? [];
-          if (!sources.includes(source)) sources.push(source);
-          this.flaggedAddresses.set(address, sources);
+        const address = fields[0].trim();
+        if (!StrKey.isValidEd25519PublicKey(address)) {
+          this.logger.warn(
+            `sanctions-oracle: skipping invalid address at line ${i + 1} of ${this.csvPath}: "${address}" is not a valid Stellar G... address`,
+          );
+          continue;
+        }
+        const source = fields[1]?.trim() || CSV_SOURCE;
+
+        const existing = this.flaggedAddresses.get(address);
+        if (!existing) {
+          this.flaggedAddresses.set(address, [source]);
+        } else if (existing.includes(source)) {
+          this.logger.warn(
+            `sanctions-oracle: address ${address} appears more than once with source "${source}" at line ${i + 1} of ${this.csvPath}; the duplicate row was ignored`,
+          );
+        } else {
+          existing.push(source);
+          this.logger.warn(
+            `sanctions-oracle: address ${address} appears more than once at line ${i + 1} of ${this.csvPath}; aggregating source "${source}" with existing sources`,
+          );
         }
       }
     } catch (error) {
