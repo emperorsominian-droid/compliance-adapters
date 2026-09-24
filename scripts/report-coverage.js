@@ -6,7 +6,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const packages = ['sep10-auth', 'sanctions-oracle', 'horizon-listener'];
+const packages = [
+  'backoff',
+  'logger',
+  'metrics',
+  'sep10-auth',
+  'sanctions-oracle',
+  'horizon-listener',
+  'tracing',
+  'tracing-types',
+];
 const rootDir = path.resolve(__dirname, '..');
 
 let totalStmts = { covered: 0, total: 0 };

@@ -1,0 +1,9 @@
+{
+  "name": "@compliance-adapters/shared",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

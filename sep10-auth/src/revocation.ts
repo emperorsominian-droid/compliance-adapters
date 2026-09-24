@@ -28,9 +28,10 @@ export interface RevocationStore {
  */
 export interface InMemoryRevocationStoreOptions {
   /**
-   * Maximum number of revocations to retain. When set and a new revocation
-   * would exceed it, the oldest-revoked entry is evicted first.
-   */
+ * Maximum number of revocations to retain. When set and a new revocation
+ * would exceed it, expired entries are reclaimed first, followed by temporary
+ * revocations, and lastly permanent revocations in FIFO order.
+ */
   maxEntries?: number;
 }
 
@@ -58,7 +59,38 @@ export class InMemoryRevocationStore implements RevocationStore {
     this.revoked.delete(address);
     this.revoked.set(address, until);
 
-    if (this.maxEntries !== undefined) {
+    if (this.maxEntries !== undefined && this.maxEntries >= 0) {
+      if (this.maxEntries === 0) {
+        this.revoked.clear();
+        return;
+      }
+
+      // Step 1: Evict logically expired entries first
+      if (this.revoked.size > this.maxEntries) {
+        const now = Date.now();
+        for (const [key, exp] of this.revoked) {
+          if (exp !== undefined && exp.getTime() <= now) {
+            this.revoked.delete(key);
+            if (this.revoked.size <= this.maxEntries) {
+              break;
+            }
+          }
+        }
+      }
+
+      // Step 2: If still exceeding maxEntries, evict oldest temporary (expiring) entries next
+      if (this.revoked.size > this.maxEntries) {
+        for (const [key, exp] of this.revoked) {
+          if (exp !== undefined) {
+            this.revoked.delete(key);
+            if (this.revoked.size <= this.maxEntries) {
+              break;
+            }
+          }
+        }
+      }
+
+      // Step 3: If still exceeding maxEntries, evict oldest permanent entries as fallback
       while (this.revoked.size > this.maxEntries) {
         const oldestKey = this.revoked.keys().next().value;
         if (oldestKey === undefined) break;

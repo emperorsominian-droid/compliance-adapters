@@ -92,4 +92,73 @@ describe('InMemoryRevocationStore', () => {
     expect(store.isRevoked(ADDRESS)).toBe(true);
     expect(store.isRevoked(otherAddress)).toBe(false);
   });
+
+  describe('maxEntries cap enforcement and eviction order', () => {
+    const ADDR1 = 'GADDR1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const ADDR2 = 'GADDR2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const ADDR3 = 'GADDR3AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const ADDR4 = 'GADDR4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+    it('enforces maxEntries cap and tracks size accurately', () => {
+      const store = new InMemoryRevocationStore({ maxEntries: 2 });
+      store.revoke(ADDR1);
+      store.revoke(ADDR2);
+      expect(store.size()).toBe(2);
+
+      store.revoke(ADDR3);
+      expect(store.size()).toBe(2);
+    });
+
+    it('evicts FIFO when all entries are permanent', () => {
+      const store = new InMemoryRevocationStore({ maxEntries: 2 });
+      store.revoke(ADDR1);
+      store.revoke(ADDR2);
+      store.revoke(ADDR3);
+
+      expect(store.isRevoked(ADDR1)).toBe(false);
+      expect(store.isRevoked(ADDR2)).toBe(true);
+      expect(store.isRevoked(ADDR3)).toBe(true);
+    });
+
+    it('prioritizes evicting logically expired entries over permanent or active temporary entries', () => {
+      const store = new InMemoryRevocationStore({ maxEntries: 2 });
+      // ADDR1 is permanent
+      store.revoke(ADDR1);
+      // ADDR2 is temporary, expiring soon
+      store.revoke(ADDR2, new Date('2026-01-01T00:05:00.000Z'));
+      expect(store.size()).toBe(2);
+
+      // Advance time so ADDR2 expires
+      jest.setSystemTime(new Date('2026-01-01T00:06:00.000Z'));
+
+      // Revoke ADDR3: ADDR2 (expired) should be evicted first, leaving ADDR1 (permanent) and ADDR3
+      store.revoke(ADDR3);
+      expect(store.size()).toBe(2);
+      expect(store.isRevoked(ADDR1)).toBe(true);
+      expect(store.isRevoked(ADDR2)).toBe(false);
+      expect(store.isRevoked(ADDR3)).toBe(true);
+    });
+
+    it('prioritizes evicting temporary entries before permanent entries when overflowing', () => {
+      const store = new InMemoryRevocationStore({ maxEntries: 2 });
+      // ADDR1 is permanent (inserted first)
+      store.revoke(ADDR1);
+      // ADDR2 is temporary (unexpired)
+      store.revoke(ADDR2, new Date('2026-01-01T01:00:00.000Z'));
+
+      // ADDR3 is revoked: ADDR2 (temporary) should be evicted before ADDR1 (permanent)
+      store.revoke(ADDR3);
+      expect(store.size()).toBe(2);
+      expect(store.isRevoked(ADDR1)).toBe(true);
+      expect(store.isRevoked(ADDR2)).toBe(false);
+      expect(store.isRevoked(ADDR3)).toBe(true);
+    });
+
+    it('handles maxEntries = 0 by immediately evicting all entries', () => {
+      const store = new InMemoryRevocationStore({ maxEntries: 0 });
+      store.revoke(ADDR1);
+      expect(store.size()).toBe(0);
+      expect(store.isRevoked(ADDR1)).toBe(false);
+    });
+  });
 });

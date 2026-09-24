@@ -161,6 +161,21 @@ app.post('/api/challenge', (req, res) => {
 | `maxRequests` | `100` | The maximum number of requests allowed within the window. |
 | `keyGenerator` | `(req) => req.ip` | A function returning a unique key for each client (defaults to the request IP). |
 
+### `createSep10Middleware` Options
+
+`createSep10Middleware(options)` accepts the following options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `serverAccountId` | `string` | *(required)* | Stellar public key (G...) of the SEP-10 auth server. |
+| `homeDomains` | `string \| string[]` | *(required)* | Expected home domain(s) embedded in the challenge. |
+| `webAuthDomain` | `string \| string[]` | *(required)* | Expected web-auth domain(s) embedded in the challenge. |
+| `networkPassphrase` | `string` | `Networks.TESTNET` | Stellar network passphrase. |
+| `expectedMemo` | `string` | `undefined` | Optional memo that must match the challenge memo. |
+| `maxTokenLength` | `number` | `8192` | Maximum accepted length (in characters) of the bearer token, rejected with `401` (`"bearer token too large"`) before XDR parsing is attempted. Guards against unauthenticated callers forcing expensive XDR-parsing work with oversized input. |
+| `revocationStore` | `RevocationStore` | `undefined` | Optional store consulted after challenge verification to reject revoked addresses before `timeoutSeconds` expires. |
+| `logger` | `Logger` | `noopLogger` | Injectable logger (`debug`, `info`, `warn`, `error`) for auth and revocation observability. |
+
 When the limit is exceeded the middleware responds with **429** and a JSON body:
 
 ```json

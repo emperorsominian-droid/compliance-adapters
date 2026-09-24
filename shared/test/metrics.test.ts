@@ -96,9 +96,9 @@ alpha_metric 2
     const metricLine = lines.find((line) => line.includes('alpha_metric'));
     const zebraLine = lines.find((line) => line.includes('zebra_metric'));
 
-    if (metricLine && zebraLine) {
-      expect(lines.indexOf(metricLine)).toBeLessThan(lines.indexOf(zebraLine));
-    }
+    expect(metricLine).toBeDefined();
+    expect(zebraLine).toBeDefined();
+    expect(lines.indexOf(metricLine as string)).toBeLessThan(lines.indexOf(zebraLine as string));
   });
 
   it('merges histogram metrics with multiple buckets and labels', () => {

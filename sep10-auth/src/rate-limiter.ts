@@ -52,8 +52,7 @@ export function rateLimiter(options: RateLimiterOptions = {}): RequestHandler {
   const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
   const keyFn = options.keyGenerator ?? defaultKeyGenerator;
 
-  // Using a plain object instead of Map so that the store can be inspected
-  // from tests (no private symbol issues).
+  // Store rate limit entry timestamps keyed by client identifier.
   const store = new Map<string, RateLimitEntry>();
 
   // Periodic sweep — every windowMs we discard stale entries so the store
