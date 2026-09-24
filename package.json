@@ -9,9 +9,14 @@
   "workspaces": [
     "logger",
     "tracing-types",
+    "metrics",
+    "backoff",
+    "tracing",
+    "shared",
     "sep10-auth",
     "sanctions-oracle",
     "horizon-listener",
+    "e2e-tests",
     "examples/full-stack-demo"
   ],
   "engines": {
